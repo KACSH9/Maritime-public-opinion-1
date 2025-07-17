@@ -1,44 +1,31 @@
+# 导入库
 from lxml import etree
 import requests
 import re
 from urllib.parse import urljoin
-from datetime import datetime
 import time as time_module
+from datetime import datetime
 
-# 正则匹配：YYYY-MM-DD
-date_pattern = re.compile(r'（(\d{4}-\d{2}-\d{2})）')
-
-# 用于收集所有新闻数据
+# AI总结摘要
 all_news = []
-
-# ---------------------- 摘要功能 ----------------------
-DASHSCOPE_API_KEY = "sk-0700f1fb01214614af26a93ba633f395"  # 你的API密钥
-
-
-def get_news_summary(title):
-    """生成新闻摘要"""
+DASHSCOPE_API_KEY = "sk-0700f1fb01214614af26a93ba633f395"  # API密钥
+def get_news_summary(news):
     if DASHSCOPE_API_KEY == "YOUR_API_KEY_HERE":
         return "请配置API密钥"
-
     headers = {
         'Authorization': f'Bearer {DASHSCOPE_API_KEY}',
         'Content-Type': 'application/json',
     }
-
-    # 修改后的prompt：要求150字左右的详细摘要，包括背景信息和重要意义
-    prompt = f"请为以下外交新闻标题生成一个150字左右的详细摘要，可以包括背景信息、谁、在哪、干什么、产生意义：{title}"
-
+    prompt = f"请为以下外交新闻内容生成一个150字左右的摘要，包括背景信息、主要人物、地点、事件和意义：{news}"
     data = {
         "model": "qwen-turbo",
         "input": {"messages": [{"role": "user", "content": prompt}]},
-        "parameters": {"max_tokens": 200, "temperature": 0.3}  # 增加到200 tokens
+        "parameters": {"max_tokens": 200, "temperature": 0.3}
     }
-
     try:
         response = requests.post("https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation",
                                  headers=headers, json=data, timeout=30)
-
-        # 移除了所有调试信息输出
+        # 移除所有调试信息输出
         if response.status_code == 200:
             result = response.json()
             if 'output' in result and 'text' in result['output']:
@@ -47,89 +34,97 @@ def get_news_summary(title):
     except:
         return "摘要生成失败"
 
-
-# ---------------------- 题目中包含时间 ----------------------
+# 题目中包含时间的内容
 def extract_simple_section(section_title, url, xpath_expr):
     resp = requests.get(url)
     resp.encoding = 'utf-8'
     html = etree.HTML(resp.text)
     links = html.xpath(xpath_expr)
-
+    date_pattern = re.compile(r'（(\d{4}-\d{2}-\d{2})）')
+    #板块
+    #print(f"\n{section_title}")
+    #爬取内容
     for a in links:
+        #标题
         text = a.xpath('string(.)').strip()
+        title = date_pattern.sub('', text).strip()
+        #链接
         href = a.xpath('./@href')[0]
         full_url = urljoin(url, href)
-
+        #新闻详情
+        detail_resp = requests.get(full_url)
+        detail_resp.encoding = 'utf-8'
+        detail_html2 = etree.HTML(detail_resp.text)
+        news_list = detail_html2.xpath('//div[@id="News_Body_Txt_A"]//p//text()')
+        news = ''.join(news_list).strip()
+        #时间
         date_match = date_pattern.search(text)
-        time = date_match.group(1) if date_match else ''
-        title = date_pattern.sub('', text).strip()
+        date = date_match.group(1) if date_match else ''
+        #输出格式
+        all_news.append((date, title, full_url, news, section_title))
 
-        # 只收集数据，不打印
-        all_news.append((time, title, full_url, section_title))
-
-
-# ---------------------- 详情页中提取时间 ----------------------
+# 题目中不包含时间，需到详情页提取
 def extract_detail_time_section(section_title, url, xpath_expr):
     resp = requests.get(url)
     resp.encoding = 'utf-8'
     html = etree.HTML(resp.text)
     links = html.xpath(xpath_expr)
-
+    #板块
+    #print(f"\n{section_title}")
+    #爬取内容
     for a in links:
+        #标题
         title = a.xpath('string(.)').strip()
+        #链接
         href = a.xpath('./@href')[0]
         full_url = urljoin(url, href)
+        #时间
+        detail_resp = requests.get(full_url)
+        detail_resp.encoding = 'utf-8'
+        detail_html = etree.HTML(detail_resp.text)
+        date = detail_html.xpath('string(//meta[@name="PubDate"]/@content)').strip()
+        #新闻详情
+        news_list = detail_html.xpath('//div[@id="News_Body_Txt_A"]//p//text()')
+        news = ''.join(news_list).strip()
+        # 输出格式
+        all_news.append((date, title, full_url, news, section_title))
 
-        try:
-            detail_resp = requests.get(full_url)
-            detail_resp.encoding = 'utf-8'
-            detail_html = etree.HTML(detail_resp.text)
-            time = detail_html.xpath('string(//meta[@name="PubDate"]/@content)').strip()
-        except Exception as e:
-            time = ''
-
-        # 只收集数据，不打印
-        all_news.append((time, title, full_url, section_title))
-
-
-# ---------------------- 特殊：讲话全文 / 声明公报 ----------------------
-def extract_rightbox_list(section_title, url):
+# 特殊板块：讲话全文 / 声明公报
+def extract_rightbox_list(section_title, url, xpath_expr):
     resp = requests.get(url)
     resp.encoding = 'utf-8'
     html = etree.HTML(resp.text)
-    items = html.xpath('//div[@class="rightbox"]//li')
-
+    items = html.xpath(xpath_expr)
+    #板块
+    #print(f"\n{section_title}")
+    #爬取内容
     for i in items:
+        #题目
         title = i.xpath('string(.//a)').strip()
+        #链接
         href = i.xpath('.//a/@href')
         full_url = urljoin(url, href[0]) if href else ''
-
-        pub_date = ''
-        if full_url:
-            try:
-                detail_resp = requests.get(full_url)
-                detail_resp.encoding = 'utf-8'
-                detail_tree = etree.HTML(detail_resp.text)
-                pub_date = detail_tree.xpath('string(//meta[@name="PubDate"]/@content)').strip()
-            except:
-                pass
-
-        # 只收集数据，不打印
-        all_news.append((pub_date, title, full_url, section_title))
+        #时间
+        detail_resp = requests.get(full_url)
+        detail_resp.encoding = 'utf-8'
+        detail_html = etree.HTML(detail_resp.text)
+        date = detail_html.xpath('string(//meta[@name="PubDate"]/@content)').strip()
+        # 新闻详情
+        news_list = detail_html.xpath('//div[@id="News_Body_Txt_A"]//p//text()')
+        news = ''.join(news_list).strip()
+        # 输出格式
+        all_news.append((date, title, full_url, news, section_title))
 
 
-# ---------------------- 调用函数 ----------------------
+# 调用函数
 
 # 含有明显日期
-extract_simple_section('重要新闻', 'https://www.fmprc.gov.cn/zyxw/',
-                       '//ul[@class="list1"][1]/li/a | //ul[@class="list1"][2]/li/a')
+extract_simple_section('重要新闻', 'https://www.fmprc.gov.cn/zyxw/', '//ul[@class="list1"][1]/li/a | //ul[@class="list1"][2]/li/a')
 extract_simple_section('外交部长活动', 'https://www.fmprc.gov.cn/wjbzhd/', '//ul[@class="list1"][1]/li/a')
 extract_simple_section('外交部新闻', 'https://www.fmprc.gov.cn/wjbxw_new/', '//ul[@class="list1"][1]/li/a')
-extract_simple_section('领导人活动', 'https://www.fmprc.gov.cn/wjdt_674879/gjldrhd_674881/',
-                       '//ul[@class="list1"][1]/li/a')
+extract_simple_section('领导人活动', 'https://www.fmprc.gov.cn/wjdt_674879/gjldrhd_674881/', '//ul[@class="list1"][1]/li/a')
 extract_simple_section('外事日程', 'https://www.fmprc.gov.cn/wjdt_674879/wsrc_674883/', '//ul[@class="list1"][1]/li/a')
-extract_simple_section('部领导活动', 'https://www.fmprc.gov.cn/wjdt_674879/wjbxw_674885/',
-                       '//ul[@class="list1"][1]/li/a')
+extract_simple_section('部领导活动', 'https://www.fmprc.gov.cn/wjdt_674879/wjbxw_674885/', '//ul[@class="list1"][1]/li/a')
 extract_simple_section('业务动态', 'https://www.fmprc.gov.cn/wjdt_674879/sjxw_674887/', '//ul[@class="list1"][1]/li/a')
 extract_simple_section('吹风会', 'https://www.fmprc.gov.cn/wjdt_674879/cfhsl_674891/', '//ul[@class="list1"][1]/li/a')
 extract_simple_section('大使任免', 'https://www.fmprc.gov.cn/wjdt_674879/dsrm_674893/', '//ul[@class="list1"][1]/li/a')
@@ -140,43 +135,36 @@ extract_simple_section('公众活动', 'https://www.fmprc.gov.cn/zwbd_673032/gzh
 extract_simple_section('外交之声', 'https://www.fmprc.gov.cn/zwbd_673032/wjzs/', '//ul[@class="list1"][1]/li/a')
 extract_simple_section('外交掠影', 'https://www.fmprc.gov.cn/zwbd_673032/ywfc_673029/', '//ul[@class="list1"][1]/li/a')
 extract_simple_section('文化交流', 'https://www.fmprc.gov.cn/zwbd_673032/whjl/', '//ul[@class="list1"][1]/li/a')
-extract_simple_section('侨务中资机构活动', 'https://www.fmprc.gov.cn/zwbd_673032/jghd_673046/',
-                       '//ul[@class="list1"][1]/li/a')
+extract_simple_section('侨务中资机构活动', 'https://www.fmprc.gov.cn/zwbd_673032/jghd_673046/', '//ul[@class="list1"][1]/li/a')
 
-# 需要进详情页取时间者
-extract_detail_time_section('发言人表态', 'https://www.fmprc.gov.cn/fyrbt_673021/',
-                            '//ul[@class="list1 list1-1"][1]/li[not(@style)]/a | //ul[@class="list1 list1-1"][2]/li[not(@style)]/a')
+# 需要进详情页取时间
+extract_detail_time_section('发言人表态', 'https://www.fmprc.gov.cn/fyrbt_673021/', '//ul[@class="list1 list1-1"][1]/li[not(@style)]/a | //ul[@class="list1 list1-1"][2]/li[not(@style)]/a')
 
 # 特殊结构：rightbox 列表页
-extract_rightbox_list('讲话全文', 'https://www.mfa.gov.cn/web/ziliao_674904/zyjh_674906/')
-extract_rightbox_list('声明公报', 'https://www.mfa.gov.cn/web/ziliao_674904/1179_674909/')
+extract_rightbox_list('讲话全文', 'https://www.mfa.gov.cn/web/ziliao_674904/zyjh_674906/', '//div[@class="rightbox"]//li')
+extract_rightbox_list('声明公报', 'https://www.mfa.gov.cn/web/ziliao_674904/1179_674909/', '//div[@class="rightbox"]//li')
 
-# ---------------------- 去重筛选 ----------------------
-
-# 获取当前日期
-today = datetime.now().strftime('%Y-%m-%d')
-
-# 先筛选当日新闻
+# 筛选当日新闻
+today = '2025-07-15'   # 获取当前日期   datetime.now().strftime('%Y-%m-%d')
 today_news = []
-for time, title, url, section in all_news:
-    if time == today:  # 只保留当日新闻
-        today_news.append((time, title, url, section))
+for time, title, url, news, section in all_news:
+    if time == today:
+        today_news.append((time, title, url, news, section))
 
-# 根据标题去重（相同标题的认为是同一条新闻）
+# 根据标题去重（相同标题）
 seen_titles = set()
 unique_news = []
 
-for time, title, url, section in today_news:
+for time, title, url, news, section in today_news:
     # 彻底清理标题：去除所有空白字符，统一比较
     clean_title = re.sub(r'\s+', '', title) if title else ''
     if clean_title and clean_title not in seen_titles:
         seen_titles.add(clean_title)
-        unique_news.append((time, title.strip(), url, section))  # 保存原始标题（只去前后空格）
+        unique_news.append((time, title.strip(), url, news, section))  # 保存原始标题（只去前后空格）
 
-# ---------------------- 生成摘要并输出 ----------------------
-
-for time, title, url, section in unique_news:
-    summary = get_news_summary(title)
+# 输出
+for time, title, url, news, section in unique_news:
+    summary = get_news_summary(news)
     print(f"时间：{time}")
     print(f"题目：{title}")
     print(f"摘要：{summary}")
