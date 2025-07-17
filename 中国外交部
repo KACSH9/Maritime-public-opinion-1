@@ -145,7 +145,7 @@ extract_rightbox_list('讲话全文', 'https://www.mfa.gov.cn/web/ziliao_674904/
 extract_rightbox_list('声明公报', 'https://www.mfa.gov.cn/web/ziliao_674904/1179_674909/', '//div[@class="rightbox"]//li')
 
 # 筛选当日新闻
-today = '2025-07-15'   # 获取当前日期   datetime.now().strftime('%Y-%m-%d')
+today = datetime.now().strftime('%Y-%m-%d')   # 获取当前日期
 today_news = []
 for time, title, url, news, section in all_news:
     if time == today:
