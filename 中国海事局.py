@@ -33,7 +33,7 @@ def get_news_summary(news):
         return "摘要生成失败"
 
 def fetch_news_1(section_title, url, xpath_rule):
-    print(f"\n{section_title}")
+    #print(f"\n{section_title}")
     headers = {
         "User-Agent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Mobile Safari/537.36 Edg/138.0.0.0"
     }
