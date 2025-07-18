@@ -158,7 +158,7 @@ for formatted_date, title, news_str, full_link in all_news:
         today_news.append((formatted_date, title, news_str, full_link))
 
 
-for formatted_date, title, news_str, full_link in all_news:
+for formatted_date, title, news_str, full_link in today_news:
     translation_title = get_news_title(title)
     summary = get_news_summary(news_str)
     print(f"时间：{formatted_date}")
