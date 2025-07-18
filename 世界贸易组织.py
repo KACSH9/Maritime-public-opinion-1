@@ -1,0 +1,70 @@
+import re
+import requests
+from html import unescape
+import time as time_module
+from datetime import datetime
+
+# AI翻译
+all_news = []
+DASHSCOPE_API_KEY = "sk-0700f1fb01214614af26a93ba633f395"  # API密钥
+def get_news_summary(news):
+    if DASHSCOPE_API_KEY == "YOUR_API_KEY_HERE":
+        return "请配置API密钥"
+    headers = {
+        'Authorization': f'Bearer {DASHSCOPE_API_KEY}',
+        'Content-Type': 'application/json',
+    }
+    prompt = f"请为以下外交新闻内容翻译成中文：{news}"
+    data = {
+        "model": "qwen-turbo",
+        "input": {"messages": [{"role": "user", "content": prompt}]},
+        "parameters": {"max_tokens": 200, "temperature": 0.3}
+    }
+    try:
+        response = requests.post("https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation",
+                                 headers=headers, json=data, timeout=30)
+        # 移除了所有调试信息输出
+        if response.status_code == 200:
+            result = response.json()
+            if 'output' in result and 'text' in result['output']:
+                return result['output']['text'].strip()
+        return "翻译生成失败"
+    except:
+        return "翻译生成失败"
+
+url = "https://www.wto.org/library/news/current_news_e.js"  # 替换成实际包含 news_item 的 js 文件
+headers = {
+    "User-Agent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Mobile Safari/537.36 Edg/138.0.0.0"
+}
+
+resp = requests.get(url, headers=headers)
+resp.encoding = 'utf-8'
+js_text = resp.text
+
+pattern = r'news_item\[(\d+)\]\s*=\s*{(.*?)};'
+matches = re.findall(pattern, js_text, re.DOTALL)
+
+for id_, content in matches:
+    # 提取字段
+    date_match = re.search(r'ni_date:"(.*?)"', content)
+    head_match = re.search(r'ni_head:"(.*?)"', content)
+    intro_match = re.search(r'ni_intro:"(.*?)"', content)
+    link_match = re.search(r'nl_url:"(.*?)"', content)
+
+    date = date_match.group(1).split('_')[0].replace('.', '-') if date_match else ""
+    title = unescape(head_match.group(1)) if head_match else ""
+    intro = unescape(intro_match.group(1)) if intro_match else ""
+    link = "https://www.wto.org" + link_match.group(1) if link_match else ""
+
+    all_news.append((date, title, intro, link))
+
+for date, title, intro, link in all_news:
+    translation_title = get_news_summary(title)
+    translation_intro = get_news_summary(intro)
+    print(f"时间：{date}")
+    print(f"题目：{translation_title}")
+    print(f"摘要：{translation_intro}")
+    print(f"链接：{link}")
+    print()  # 空行分隔
+    time_module.sleep(0.5)  # 避免API限制
+
