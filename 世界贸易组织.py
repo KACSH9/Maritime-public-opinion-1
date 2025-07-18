@@ -58,13 +58,23 @@ for id_, content in matches:
 
     all_news.append((date, title, intro, link))
 
+# 筛选当日新闻
+today = datetime.now().strftime('%Y-%m-%d')
+today_news = []
+
 for date, title, intro, link in all_news:
+    if date == today:
+        today_news.append((date, title, intro, link))
+
+for date, title, intro, link in today_news:
     translation_title = get_news_summary(title)
     translation_intro = get_news_summary(intro)
     print(f"时间：{date}")
     print(f"题目：{translation_title}")
     print(f"摘要：{translation_intro}")
     print(f"链接：{link}")
-    print()  # 空行分隔
-    time_module.sleep(0.5)  # 避免API限制
+    print()
+    time_module.sleep(0.5)
+
+
 
