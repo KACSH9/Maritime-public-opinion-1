@@ -7,14 +7,14 @@ from datetime import datetime
 # AI翻译
 all_news = []
 DASHSCOPE_API_KEY = "sk-0700f1fb01214614af26a93ba633f395"  # API密钥
-def get_news_summary(news):
+def get_news_summary(news, is_title=False):
     if DASHSCOPE_API_KEY == "YOUR_API_KEY_HERE":
         return "请配置API密钥"
     headers = {
         'Authorization': f'Bearer {DASHSCOPE_API_KEY}',
         'Content-Type': 'application/json',
     }
-    prompt = f"请为以下外交新闻内容翻译成中文：{news}"
+    prompt = f"请为以下{'外交新闻标题' if is_title else '外交新闻内容'}翻译成中文：{news}"
     data = {
         "model": "qwen-turbo",
         "input": {"messages": [{"role": "user", "content": prompt}]},
@@ -67,8 +67,8 @@ for date, title, intro, link in all_news:
         today_news.append((date, title, intro, link))
 
 for date, title, intro, link in today_news:
-    translation_title = get_news_summary(title)
-    translation_intro = get_news_summary(intro)
+    translation_title = get_news_summary(title, is_title=True)
+    translation_intro = get_news_summary(intro, is_title=False)
     print(f"时间：{date}")
     print(f"题目：{translation_title}")
     print(f"摘要：{translation_intro}")
