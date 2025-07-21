@@ -3,6 +3,7 @@ import re
 from lxml import etree
 from urllib.parse import urljoin
 import time as time_module
+from datetime import datetime
 
 # AI总结摘要
 all_news = []
@@ -73,7 +74,7 @@ fetch_news_1("船舶检验", "https://www.msa.gov.cn/page/channelArticles.do?typ
 fetch_news_1("法定主动公开内容", "https://www.msa.gov.cn/page/openInfo/articleList.do?channelId=33&pageSize=20&pageNo=1&isParent=1&type=xxgk", '//li')
 
 # 筛选当日新闻
-today = '2025-07-16'   # 获取当前日期   datetime.now().strftime('%Y-%m-%d')
+today = datetime.now().strftime('%Y-%m-%d')
 today_news = []
 for time, title, url, news, section in all_news:
     if time == today:
