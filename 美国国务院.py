@@ -222,7 +222,7 @@ for item in china_items:
         all_news.append((formatted_date, title, content, link))
 
 # 筛选当日新闻
-today = '2025-07-17'#datetime.now().strftime('%Y-%m-%d')   # 获取当前日期
+today = datetime.now().strftime('%Y-%m-%d')   # 获取当前日期
 today_news = []
 for formatted_date, title, content, link in all_news:
     if formatted_date == today:
